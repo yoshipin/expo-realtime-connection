@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Send, Loader } from 'lucide-react-native';
 import { fetch } from 'expo/fetch';
+// import { OpenAI } from 'openai';
 
 const API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 export default function ChatScreen() {
@@ -26,26 +27,21 @@ export default function ChatScreen() {
     setInputText('');
     setResponseText('');
 
-    const url = 'https://api.openai.com/v1/chat/completions';
-    const headers = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${API_KEY}`,
-    };
-
-    const body = JSON.stringify({
-      model: 'gpt-4',
-      messages: [{ role: 'user', content: inputText }],
-      stream: true,
-    });
-
-    const res = await fetch(url, {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers,
-      body,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4',
+        messages: [{ role: 'user', content: inputText }],
+        stream: true,
+      })
     });
 
     const reader = res.body?.getReader();
-    const decoder = new TextDecoder();
+    const decoder = new TextDecoder(); // utf-8
 
     // Read the stream
     while (true) {
@@ -60,7 +56,7 @@ export default function ChatScreen() {
         break;
       }
       // Decode the stream
-      const decodedText = decoder.decode(value, { stream: true });
+      const decodedText = decoder.decode(value, { stream: true,  });
       const chunks = decodedText
         .replace(/data: /g, '') // Remove all data:
         .split('\n')
@@ -71,7 +67,7 @@ export default function ChatScreen() {
         try {
           const json = JSON.parse(jsonString);
           const delta = json.choices?.[0]?.delta?.content || '';
-          console.log(delta);
+    
           setResponseText((prev) => prev + delta);
         } catch (error) {
           console.error('Parsing error:', error);
@@ -82,6 +78,40 @@ export default function ChatScreen() {
 
     setLoading(false);
   };
+
+  // const fetchChatStream = async () => {
+  //   setResponseText('')
+  //   setLoading(true)
+  //   setResponseText('')
+
+  //   const client = new OpenAI({
+  //     apiKey: API_KEY,
+  //   })
+
+  //   try {
+  //     const stream = await client.chat.completions.create({
+  //       model: 'gpt-4o',
+  //       messages: [
+  //         {
+  //           role: 'user',
+  //           content: inputText,
+  //         },
+  //       ],
+  //       stream: true, 
+  //     })
+
+  //     for await (const chunk of stream) {
+  //       const delta = chunk.choices?.[0]?.delta?.content || ''
+  //       setResponseText((prev) => prev + delta)
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching stream:', error)
+  //   } finally {
+  //     setInputText('')
+  //     setLoading(false)
+  //   }
+  // }
+
 
   return (
     <SafeAreaView style={styles.container}>
