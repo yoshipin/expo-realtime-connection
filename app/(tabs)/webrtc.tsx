@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, Platform, PermissionsAndroid } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Platform, PermissionsAndroid } from 'react-native';
 import { Audio } from 'expo-av';
 import { fetch } from 'expo/fetch';
 import { RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, mediaDevices, MediaStream, MediaStreamTrack } from 'react-native-webrtc';
@@ -12,6 +12,8 @@ export default function WebRTC() {
   const localStream = useRef<MediaStream | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const dataChannel = useRef<any>(null);
+  const audioQueue = useRef<string[]>([]);
+  const isPlaying = useRef(false);
 
   useEffect(() => {
     requestPermissions();
@@ -73,7 +75,6 @@ export default function WebRTC() {
         });
       }
 
-      // データチャネルの設定
       if (peerConnection.current) {
         dataChannel.current = peerConnection.current.createDataChannel('oai-events', {
           ordered: true,
@@ -89,6 +90,13 @@ export default function WebRTC() {
           try {
             const data = JSON.parse(event.data);
             console.log('Parsed message:', data);
+
+            if (data.type === 'response.audio_transcript.delta' && data.delta) {
+              audioQueue.current.push(data.delta);
+              if (!isPlaying.current) {
+                playNextAudio();
+              }
+            }
           } catch (error) {
             console.error('Failed to parse message:', error);
           }
@@ -135,28 +143,61 @@ export default function WebRTC() {
     }
   };
 
+  const playNextAudio = async () => {
+    if (audioQueue.current.length === 0) {
+      isPlaying.current = false;
+      return;
+    }
+
+    isPlaying.current = true;
+    const audioData = audioQueue.current.shift();
+
+    try {
+      if (sound) {
+        await sound.unloadAsync();
+      }
+
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: `data:audio/wav;base64,${audioData}` },
+        { shouldPlay: true }
+      );
+
+      setSound(newSound);
+
+      newSound.setOnPlaybackStatusUpdate(async (status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          await newSound.unloadAsync();
+          playNextAudio();
+        }
+      });
+    } catch (error) {
+      isPlaying.current = false;
+      playNextAudio();
+    }
+  };
+
   const sendEvent = () => {
     if (dataChannel.current && dataChannel.current.readyState === 'open') {
       try {
         dataChannel.current.send(JSON.stringify({
-            type: 'conversation.item.create',
-            item: {
-              type: 'message',
-              role: 'user',
-              content: [
-                {
-                  type: 'input_text',
-                  text: 'こんにちは、調子はどうですか？',
-                }
-              ]
-            }
-          }));
-          dataChannel.current.send(JSON.stringify({
-            type: "response.create",
-            response: {
-              modalities: [ "text" ]
-            },
-          }));
+          type: 'conversation.item.create',
+          item: {
+            type: 'message',
+            role: 'user',
+            content: [
+              {
+                type: 'input_text',
+                text: 'React Nativeについて知っていますか？',
+              }
+            ]
+          }
+        }));
+        dataChannel.current.send(JSON.stringify({
+          type: "response.create",
+          response: {
+            modalities: [ "audio", "text" ]
+          },
+        }));
       } catch (error) {
         console.error('Failed to send event:', error);
       }
@@ -217,7 +258,7 @@ export default function WebRTC() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerText}>音声対話アプリ</Text>
+        <Text style={styles.headerText}>GPT Voice Chat</Text>
       </View>
       <View style={styles.content}>
         <Text style={styles.statusText}>{status}</Text>
