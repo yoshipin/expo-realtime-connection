@@ -1,12 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Platform, PermissionsAndroid } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  SafeAreaView,
+  Platform,
+  PermissionsAndroid,
+  TextInput,
+  KeyboardAvoidingView,
+  ScrollView,
+} from 'react-native';
 import { Audio } from 'expo-av';
 import { fetch } from 'expo/fetch';
-import { RTCPeerConnection, RTCSessionDescription, mediaDevices, MediaStream, MediaStreamTrack } from 'react-native-webrtc';
+import {
+  RTCPeerConnection,
+  RTCSessionDescription,
+
+  mediaDevices,
+  MediaStream,
+  MediaStreamTrack,
+} from 'react-native-webrtc';
+import { Send } from 'lucide-react-native';
 
 export default function WebRTC() {
+  const scrollViewRef = useRef<ScrollView>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [status, setStatus] = useState('初期化中...');
+  const [message, setMessage] = useState('');
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const localStream = useRef<MediaStream | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -21,7 +42,7 @@ export default function WebRTC() {
         peerConnection.current.close();
       }
       if (localStream.current) {
-        localStream.current.getTracks().forEach(track => track.stop());
+        localStream.current.getTracks().forEach((track) => track.stop());
       }
       if (sound) {
         sound.unloadAsync();
@@ -37,8 +58,10 @@ export default function WebRTC() {
           PermissionsAndroid.PERMISSIONS.CAMERA,
         ]);
         if (
-          granted['android.permission.RECORD_AUDIO'] === PermissionsAndroid.RESULTS.GRANTED &&
-          granted['android.permission.CAMERA'] === PermissionsAndroid.RESULTS.GRANTED
+          granted['android.permission.RECORD_AUDIO'] ===
+            PermissionsAndroid.RESULTS.GRANTED &&
+          granted['android.permission.CAMERA'] ===
+            PermissionsAndroid.RESULTS.GRANTED
         ) {
           initializeWebRTC();
         } else {
@@ -54,16 +77,14 @@ export default function WebRTC() {
 
   const initializeWebRTC = async () => {
     try {
-      const stream = await mediaDevices.getUserMedia({
+      const stream = (await mediaDevices.getUserMedia({
         audio: true,
         video: false,
-      }) as MediaStream;
+      })) as MediaStream;
       localStream.current = stream;
 
       peerConnection.current = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-        ],
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
       });
 
       if (localStream.current) {
@@ -75,9 +96,12 @@ export default function WebRTC() {
       }
 
       if (peerConnection.current) {
-        dataChannel.current = peerConnection.current.createDataChannel('oai-events', {
-          ordered: true,
-        });
+        dataChannel.current = peerConnection.current.createDataChannel(
+          'oai-events',
+          {
+            ordered: true,
+          },
+        );
 
         dataChannel.current.onopen = () => {
           console.log('Data channel opened');
@@ -109,15 +133,17 @@ export default function WebRTC() {
           console.log('Data channel closed');
         };
 
-        peerConnection.current.addEventListener('icecandidate', (event: any) => {
-          if (event.candidate) {
-            console.log('ICE candidate:', event.candidate);
-          }
-        });
+        peerConnection.current.addEventListener(
+          'icecandidate',
+          (event: any) => {
+            if (event.candidate) {
+              console.log('ICE candidate:', event.candidate);
+            }
+          },
+        );
 
         peerConnection.current.addEventListener('track', (event: any) => {
           console.log('Received track:', event);
-         
         });
       }
 
@@ -144,7 +170,7 @@ export default function WebRTC() {
 
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri: `data:audio/wav;base64,${audioData}` },
-        { shouldPlay: true }
+        { shouldPlay: true },
       );
 
       setSound(newSound);
@@ -164,25 +190,30 @@ export default function WebRTC() {
   const sendEvent = () => {
     if (dataChannel.current && dataChannel.current.readyState === 'open') {
       try {
-        dataChannel.current.send(JSON.stringify({
-          type: 'conversation.item.create',
-          item: {
-            type: 'message',
-            role: 'user',
-            content: [
-              {
-                type: 'input_text',
-                text: 'React Nativeについて知っていますか？',
-              }
-            ]
-          }
-        }));
-        dataChannel.current.send(JSON.stringify({
-          type: "response.create",
-          response: {
-            modalities: [ "audio", "text" ]
-          },
-        }));
+        dataChannel.current.send(
+          JSON.stringify({
+            type: 'conversation.item.create',
+            item: {
+              type: 'message',
+              role: 'user',
+              content: [
+                {
+                  type: 'input_text',
+                  text: message,
+                },
+              ],
+            },
+          }),
+        );
+        dataChannel.current.send(
+          JSON.stringify({
+            type: 'response.create',
+            response: {
+              modalities: ['audio', 'text'],
+            },
+          }),
+        );
+        setMessage(''); // メッセージをクリア
       } catch (error) {
         console.error('Failed to send event:', error);
       }
@@ -210,7 +241,7 @@ export default function WebRTC() {
       const response = await fetch(`${baseUrl}?model=${model}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY}`,
+          Authorization: `Bearer ${process.env.EXPO_PUBLIC_OPENAI_API_KEY}`,
           'Content-Type': 'application/sdp',
         },
         body: offer.sdp,
@@ -229,7 +260,7 @@ export default function WebRTC() {
       };
 
       await peerConnection.current.setRemoteDescription(
-        new RTCSessionDescription(answer)
+        new RTCSessionDescription(answer),
       );
 
       setIsConnected(true);
@@ -245,24 +276,38 @@ export default function WebRTC() {
       <View style={styles.header}>
         <Text style={styles.headerText}>GPT Voice Chat</Text>
       </View>
-      <View style={styles.content}>
-        <Text style={styles.statusText}>{status}</Text>
-        <View style={styles.buttonContainer}>
+      <ScrollView ref={scrollViewRef}>
+        <View style={styles.statusContainer}>
+          <Text style={styles.statusText}>{status}</Text>
           <TouchableOpacity
             style={[styles.button, isConnected && styles.disabledButton]}
             onPress={startSession}
+            disabled={isConnected}
           >
-            <Text style={styles.buttonText}>セッション開始</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.button, !isConnected && styles.disabledButton]}
-            onPress={sendEvent}
-            disabled={!isConnected}
-          >
-            <Text style={styles.buttonText}>イベント送信</Text>
+            <Text style={styles.buttonText}>WebRTC接続</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
+      <KeyboardAvoidingView
+        style={styles.inputContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <TextInput
+          style={styles.input}
+          value={message}
+          onChangeText={setMessage}
+          placeholder="Type a message..."
+          placeholderTextColor="#666"
+          multiline
+        />
+        <TouchableOpacity
+          style={styles.sendButton}
+          onPress={sendEvent}
+          disabled={!message.trim() || !isConnected}
+        >
+          <Send size={24} color={message.trim() === '' ? '#666' : '#007AFF'} />
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -288,32 +333,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  statusContainer: {
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexDirection: 'row',
+  },
   statusText: {
     fontSize: 16,
-    marginBottom: 20,
     color: '#666',
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
   },
   button: {
     backgroundColor: '#007AFF',
-    padding: 12,
+    padding: 4,
     borderRadius: 8,
-    minWidth: 120,
     alignItems: 'center',
   },
   disabledButton: {
     backgroundColor: '#ccc',
   },
-  recordingButton: {
-    backgroundColor: '#FF3B30',
-  },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  input: {
+    flex: 1,
+    marginRight: 12,
+    padding: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 20,
+    fontSize: 16,
+    maxHeight: 100,
+    color: '#333',
+  },
+  sendButton: {
+    alignSelf: 'flex-end',
+    padding: 8,
   },
 });
