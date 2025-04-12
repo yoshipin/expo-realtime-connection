@@ -2,11 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Platform, PermissionsAndroid } from 'react-native';
 import { Audio } from 'expo-av';
 import { fetch } from 'expo/fetch';
-import { RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, mediaDevices, MediaStream, MediaStreamTrack } from 'react-native-webrtc';
+import { RTCPeerConnection, RTCSessionDescription, mediaDevices, MediaStream, MediaStreamTrack } from 'react-native-webrtc';
 
 export default function WebRTC() {
   const [isConnected, setIsConnected] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [status, setStatus] = useState('初期化中...');
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const localStream = useRef<MediaStream | null>(null);
@@ -118,9 +117,7 @@ export default function WebRTC() {
 
         peerConnection.current.addEventListener('track', (event: any) => {
           console.log('Received track:', event);
-          if (event.streams && event.streams[0]) {
-            handleReceivedAudio(event.streams[0] as MediaStream);
-          }
+         
         });
       }
 
@@ -128,18 +125,6 @@ export default function WebRTC() {
     } catch (error) {
       console.error('WebRTC初期化エラー:', error);
       setStatus('初期化エラー');
-    }
-  };
-
-  const handleReceivedAudio = async (stream: MediaStream) => {
-    try {
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: stream.toURL() },
-        { shouldPlay: true }
-      );
-      setSound(newSound);
-    } catch (error) {
-      console.error('音声再生エラー:', error);
     }
   };
 
@@ -207,7 +192,7 @@ export default function WebRTC() {
     }
   };
 
-  const startCall = async () => {
+  const startSession = async () => {
     try {
       if (!peerConnection.current) return;
 
@@ -265,7 +250,7 @@ export default function WebRTC() {
         <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={[styles.button, isConnected && styles.disabledButton]}
-            onPress={startCall}
+            onPress={startSession}
           >
             <Text style={styles.buttonText}>セッション開始</Text>
           </TouchableOpacity>
