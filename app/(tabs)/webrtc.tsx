@@ -27,6 +27,7 @@ export default function WebRTC() {
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const localStream = useRef<MediaStream | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [message, setMessage] = useState('');
   const dataChannel = useRef<any>(null);
   const audioQueue = useRef<string[]>([]);
   const isPlaying = useRef(false);
@@ -115,6 +116,9 @@ export default function WebRTC() {
               if (!isPlaying.current) {
                 playNextAudio();
               }
+            }
+            if (data.type === 'response.audio_transcript.done') {
+              setMessage(data.transcript);
             }
           } catch (error) {
             console.error('Failed to parse message:', error);
@@ -261,7 +265,13 @@ export default function WebRTC() {
       <View style={styles.header}>
         <Text style={styles.headerText}>GPT Voice Chat</Text>
       </View>
-      <ScrollView ref={scrollViewRef}></ScrollView>
+      <ScrollView ref={scrollViewRef}>
+        {message && (
+          <View style={styles.messageContainer}>
+            <Text style={styles.messageText}>{message}</Text>
+          </View>
+        )}
+      </ScrollView>
       <View style={styles.statusContainer}>
         <Text style={styles.statusText}>{status}</Text>
         <View style={styles.buttonContainer}>
@@ -306,6 +316,18 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  messageContainer: {
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  messageText: {
+    fontSize: 16,
+    color: '#333',
   },
   statusContainer: {
     padding: 16,
