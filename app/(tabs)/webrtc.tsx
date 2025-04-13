@@ -32,6 +32,7 @@ export default function WebRTC() {
   const dataChannel = useRef<any>(null);
   const audioQueue = useRef<string[]>([]);
   const isPlaying = useRef(false);
+  const [isReceiving, setIsReceiving] = useState(true);
 
   useEffect(() => {
     requestPermissions();
@@ -95,7 +96,7 @@ export default function WebRTC() {
 
       if (peerConnection.current) {
         dataChannel.current = peerConnection.current.createDataChannel(
-          'oai-events',
+          'gpt-realtime-events',
           {
             ordered: true,
           },
@@ -107,12 +108,14 @@ export default function WebRTC() {
         };
 
         dataChannel.current.onmessage = (event: any) => {
-          console.log('Received message:', event.data);
+          //   console.log('Received message:', event.data);
           try {
             const data = JSON.parse(event.data);
             console.log('Parsed message:', data);
 
             if (data.type === 'response.audio_transcript.delta' && data.delta) {
+              setMessage('');
+              setIsReceiving(false);
               localStream.current?.getAudioTracks().forEach((track) => {
                 track.enabled = false;
               });
@@ -125,6 +128,7 @@ export default function WebRTC() {
               setMessage(data.transcript);
             }
             if (data.type === 'output_audio_buffer.stopped') {
+              setIsReceiving(true);
               localStream.current?.getAudioTracks().forEach((track) => {
                 track.enabled = true;
               });
@@ -278,7 +282,11 @@ export default function WebRTC() {
       <ScrollView ref={scrollViewRef}>
         {isConnected && (
           <View style={styles.statusIndicatorWrapper}>
-            <AudioStatusIndicator />
+            {isReceiving ? (
+              <AudioStatusIndicator />
+            ) : (
+              <SpeakerStatusIndicator />
+            )}
           </View>
         )}
         {message && (
@@ -341,6 +349,40 @@ const AudioStatusIndicator = () => {
         <Mic size={24} color="#007AFF" />
       </Animated.View>
       <Text style={styles.statusIndicatorText}>音声入力中</Text>
+    </View>
+  );
+};
+
+const SpeakerStatusIndicator = () => {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const pulse = Animated.sequence([
+      Animated.timing(pulseAnim, {
+        toValue: 1.2,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+    ]);
+
+    Animated.loop(pulse).start();
+
+    return () => {
+      pulseAnim.setValue(1);
+    };
+  }, []);
+
+  return (
+    <View style={styles.statusIndicatorContainer}>
+      <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+        <AudioLines size={24} color="#007AFF" />
+      </Animated.View>
+      <Text style={styles.statusIndicatorText}>AI応答中</Text>
     </View>
   );
 };
