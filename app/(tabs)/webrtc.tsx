@@ -8,6 +8,7 @@ import {
   Platform,
   PermissionsAndroid,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { fetch } from 'expo/fetch';
@@ -18,7 +19,7 @@ import {
   MediaStream,
   MediaStreamTrack,
 } from 'react-native-webrtc';
-import { AudioLines } from 'lucide-react-native';
+import { AudioLines, Mic } from 'lucide-react-native';
 
 export default function WebRTC() {
   const scrollViewRef = useRef<ScrollView>(null);
@@ -112,6 +113,9 @@ export default function WebRTC() {
             console.log('Parsed message:', data);
 
             if (data.type === 'response.audio_transcript.delta' && data.delta) {
+              localStream.current?.getAudioTracks().forEach((track) => {
+                track.enabled = false;
+              });
               audioQueue.current.push(data.delta);
               if (!isPlaying.current) {
                 playNextAudio();
@@ -119,6 +123,11 @@ export default function WebRTC() {
             }
             if (data.type === 'response.audio_transcript.done') {
               setMessage(data.transcript);
+            }
+            if (data.type === 'output_audio_buffer.stopped') {
+              localStream.current?.getAudioTracks().forEach((track) => {
+                track.enabled = true;
+              });
             }
           } catch (error) {
             console.error('Failed to parse message:', error);
@@ -249,6 +258,7 @@ export default function WebRTC() {
         await sound.unloadAsync();
         setSound(null);
       }
+      setMessage('');
       setIsConnected(false);
       setStatus('セッションを終了しました');
       audioQueue.current = [];
@@ -266,6 +276,11 @@ export default function WebRTC() {
         <Text style={styles.headerText}>GPT Voice Chat</Text>
       </View>
       <ScrollView ref={scrollViewRef}>
+        {isConnected && (
+          <View style={styles.statusIndicatorWrapper}>
+            <AudioStatusIndicator />
+          </View>
+        )}
         {message && (
           <View style={styles.messageContainer}>
             <Text style={styles.messageText}>{message}</Text>
@@ -296,6 +311,40 @@ export default function WebRTC() {
   );
 }
 
+const AudioStatusIndicator = () => {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const pulse = Animated.sequence([
+      Animated.timing(pulseAnim, {
+        toValue: 1.2,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+    ]);
+
+    Animated.loop(pulse).start();
+
+    return () => {
+      pulseAnim.setValue(1);
+    };
+  }, []);
+
+  return (
+    <View style={styles.statusIndicatorContainer}>
+      <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+        <Mic size={24} color="#007AFF" />
+      </Animated.View>
+      <Text style={styles.statusIndicatorText}>音声入力中</Text>
+    </View>
+  );
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -322,8 +371,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
   },
   messageText: {
     fontSize: 16,
@@ -375,5 +422,22 @@ const styles = StyleSheet.create({
   sendButton: {
     alignSelf: 'flex-end',
     padding: 8,
+  },
+  statusIndicatorWrapper: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  aiRespondingText: {
+    color: '#666',
+    fontSize: 14,
+    marginTop: 8,
+  },
+  statusIndicatorContainer: {
+    alignItems: 'center',
+  },
+  statusIndicatorText: {
+    color: '#666',
+    fontSize: 14,
+    marginTop: 8,
   },
 });
