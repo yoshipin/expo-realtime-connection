@@ -17,7 +17,7 @@ import { fetch } from 'expo/fetch';
 const API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 export default function ChatScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
-  
+
   const [inputText, setInputText] = useState('');
   const [responseText, setResponseText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,7 +37,7 @@ export default function ChatScreen() {
         model: 'gpt-4',
         messages: [{ role: 'user', content: inputText }],
         stream: true,
-      })
+      }),
     });
 
     const reader = res.body?.getReader();
@@ -56,7 +56,7 @@ export default function ChatScreen() {
         break;
       }
       // Decode the stream
-      const decodedText = decoder.decode(value, { stream: true,  });
+      const decodedText = decoder.decode(value, { stream: true });
       const chunks = decodedText
         .replace(/data: /g, '') // Remove all data:
         .split('\n')
@@ -65,9 +65,10 @@ export default function ChatScreen() {
 
       chunks.forEach((jsonString) => {
         try {
+          console.log('jsonString:', jsonString);
           const json = JSON.parse(jsonString);
           const delta = json.choices?.[0]?.delta?.content || '';
-    
+
           setResponseText((prev) => prev + delta);
         } catch (error) {
           console.error('Parsing error:', error);
@@ -97,7 +98,7 @@ export default function ChatScreen() {
   //           content: inputText,
   //         },
   //       ],
-  //       stream: true, 
+  //       stream: true,
   //     })
 
   //     for await (const chunk of stream) {
@@ -111,7 +112,6 @@ export default function ChatScreen() {
   //     setLoading(false)
   //   }
   // }
-
 
   return (
     <SafeAreaView style={styles.container}>
@@ -129,7 +129,7 @@ export default function ChatScreen() {
       >
         {loading && (
           <View style={[styles.messageBubble]}>
-            <Loader size={24} color="#666"  />
+            <Loader size={24} color="#666" />
           </View>
         )}
         {responseText && (
