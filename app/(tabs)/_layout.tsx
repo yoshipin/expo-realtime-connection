@@ -9,7 +9,8 @@ export default function TabLayout() {
         tabBarStyle: {
           display: 'flex',
         },
-      }}>
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{

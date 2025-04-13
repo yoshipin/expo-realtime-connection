@@ -7,8 +7,6 @@ import {
   SafeAreaView,
   Platform,
   PermissionsAndroid,
-  TextInput,
-  KeyboardAvoidingView,
   ScrollView,
 } from 'react-native';
 import { Audio } from 'expo-av';
@@ -16,18 +14,16 @@ import { fetch } from 'expo/fetch';
 import {
   RTCPeerConnection,
   RTCSessionDescription,
-
   mediaDevices,
   MediaStream,
   MediaStreamTrack,
 } from 'react-native-webrtc';
-import { Send } from 'lucide-react-native';
+import { AudioLines } from 'lucide-react-native';
 
 export default function WebRTC() {
   const scrollViewRef = useRef<ScrollView>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [status, setStatus] = useState('初期化中...');
-  const [message, setMessage] = useState('');
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const localStream = useRef<MediaStream | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -147,7 +143,7 @@ export default function WebRTC() {
         });
       }
 
-      setStatus('接続準備完了');
+      setStatus('WebRTC接続準備完了');
     } catch (error) {
       console.error('WebRTC初期化エラー:', error);
       setStatus('初期化エラー');
@@ -184,42 +180,6 @@ export default function WebRTC() {
     } catch (error) {
       isPlaying.current = false;
       playNextAudio();
-    }
-  };
-
-  const sendEvent = () => {
-    if (dataChannel.current && dataChannel.current.readyState === 'open') {
-      try {
-        dataChannel.current.send(
-          JSON.stringify({
-            type: 'conversation.item.create',
-            item: {
-              type: 'message',
-              role: 'user',
-              content: [
-                {
-                  type: 'input_text',
-                  text: message,
-                },
-              ],
-            },
-          }),
-        );
-        dataChannel.current.send(
-          JSON.stringify({
-            type: 'response.create',
-            response: {
-              modalities: ['audio', 'text'],
-            },
-          }),
-        );
-        setMessage(''); // メッセージをクリア
-      } catch (error) {
-        console.error('Failed to send event:', error);
-      }
-    } else {
-      console.error('Data channel is not open');
-      setStatus('データチャネルが接続されていません');
     }
   };
 
@@ -264,10 +224,35 @@ export default function WebRTC() {
       );
 
       setIsConnected(true);
-      setStatus('接続完了');
+      setStatus('セッションを開始しました');
     } catch (error) {
-      console.error('通話開始エラー:', error);
-      setStatus('接続エラー');
+      console.error('セッション開始エラー:', error);
+      setStatus('セッション開始エラー');
+    }
+  };
+
+  const endSession = async () => {
+    try {
+      if (peerConnection.current) {
+        peerConnection.current.close();
+        peerConnection.current = null;
+      }
+      if (localStream.current) {
+        localStream.current.getTracks().forEach((track) => track.stop());
+        localStream.current = null;
+      }
+      if (sound) {
+        await sound.unloadAsync();
+        setSound(null);
+      }
+      setIsConnected(false);
+      setStatus('セッションを終了しました');
+      audioQueue.current = [];
+      isPlaying.current = false;
+      initializeWebRTC();
+    } catch (error) {
+      console.error('セッション終了エラー:', error);
+      setStatus('セッション終了エラー');
     }
   };
 
@@ -276,38 +261,27 @@ export default function WebRTC() {
       <View style={styles.header}>
         <Text style={styles.headerText}>GPT Voice Chat</Text>
       </View>
-      <ScrollView ref={scrollViewRef}>
-        <View style={styles.statusContainer}>
-          <Text style={styles.statusText}>{status}</Text>
-          <TouchableOpacity
-            style={[styles.button, isConnected && styles.disabledButton]}
-            onPress={startSession}
-            disabled={isConnected}
-          >
-            <Text style={styles.buttonText}>WebRTC接続</Text>
-          </TouchableOpacity>
+      <ScrollView ref={scrollViewRef}></ScrollView>
+      <View style={styles.statusContainer}>
+        <Text style={styles.statusText}>{status}</Text>
+        <View style={styles.buttonContainer}>
+          {!isConnected ? (
+            <TouchableOpacity
+              style={[styles.button, styles.startButton]}
+              onPress={startSession}
+            >
+              <AudioLines size={24} color="white" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.button, styles.endButton]}
+              onPress={endSession}
+            >
+              <AudioLines size={24} color="white" />
+            </TouchableOpacity>
+          )}
         </View>
-      </ScrollView>
-      <KeyboardAvoidingView
-        style={styles.inputContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <TextInput
-          style={styles.input}
-          value={message}
-          onChangeText={setMessage}
-          placeholder="Type a message..."
-          placeholderTextColor="#666"
-          multiline
-        />
-        <TouchableOpacity
-          style={styles.sendButton}
-          onPress={sendEvent}
-          disabled={!message.trim() || !isConnected}
-        >
-          <Send size={24} color={message.trim() === '' ? '#666' : '#007AFF'} />
-        </TouchableOpacity>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -338,24 +312,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
   },
   statusText: {
     fontSize: 16,
     color: '#666',
   },
+  buttonContainer: {
+    flexDirection: 'row',
+  },
   button: {
-    backgroundColor: '#007AFF',
     padding: 4,
     borderRadius: 8,
     alignItems: 'center',
   },
-  disabledButton: {
-    backgroundColor: '#ccc',
+  startButton: {
+    backgroundColor: '#007AFF',
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  endButton: {
+    backgroundColor: '#FF3B30',
   },
   inputContainer: {
     flexDirection: 'row',
